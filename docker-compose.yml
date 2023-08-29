@@ -1,0 +1,84 @@
+version: '3'
+
+networks:
+  # a_vlanWAN:
+  #   external: true
+  # b_vlanLOCAL:
+  #   external: true
+  cfpbx-1:
+    driver: bridge
+
+services:
+  ## Use External DB - comment
+  db:
+    image: docker.io/mariadb:10.11.4
+    container_name: cfpbx-db
+    command: --sql-mode=ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
+    restart: unless-stopped
+    env_file:
+    - .env
+    environment:
+    - TZ
+    - MYSQL_DATABASE
+    - MYSQL_USER
+    - MYSQL_PASSWORD
+    - MYSQL_ROOT_PASSWORD
+    volumes:
+    #- /etc/localtime:/etc/localtime:ro
+    - ./data/db:/var/lib/mysql
+    ## NOTE: to avoid nat management use: 'network_mode: host'
+    #network_mode: host
+    ## if 'network_mode: host' is disabled, comment out
+    networks:
+      cfpbx-1:
+    ports:
+    - ${APP_PORT_MYSQL}:3306
+
+  cfpbx:
+    image: docker.io/cfotel/cfpbx-asterisk:dev-20.16.0
+    container_name: cfpbx
+    # entrypoint: >
+    #   /bin/bash -c "
+    #   /bin/bash -c \"sleep 3600\" &&
+    #   /bin/bash -c \"route add -net 172.16.0.0/12 gw ${IPv4_GATEWAY}\"
+    #   "
+    # End Custom
+    hostname: ${APP_FQDN}
+    restart: unless-stopped
+    # comment if use DB remote external
+    depends_on:
+    - db
+    env_file:
+    - .env
+    volumes:
+    #- /etc/localtime:/etc/localtime:ro
+    - ./data:/data
+    ## for fail2ban isuse
+    cap_add:
+    - SYS_ADMIN
+    - NET_ADMIN
+    #security_opt:
+    #- seccomp=unconfined
+    privileged: true
+    ulimits:
+      nofile:
+        soft: 8192
+        hard: 32768
+    ## RTP NAT issues use: 'network_mode: host'
+    network_mode: host
+    # networks:
+    #   # a_vlanX:
+    #   #   ipv4_address:
+    #   # b_vlan1203:
+    #   #   ipv4_address:
+    # ports:
+    # - ${APP_PORT_HTTP}:${APP_PORT_HTTP}
+    # - ${APP_PORT_HTTPS}:${APP_PORT_HTTPS}
+    # - ${APP_PORT_PJSIP}:${APP_PORT_PJSIP}
+    # - ${APP_PORT_PJSIP}:${APP_PORT_PJSIP}/udp
+    # # - ${APP_PORT_SIP}:${APP_PORT_SIP}/udp
+    # # - ${APP_PORT_SIP}:${APP_PORT_SIP}
+    # - ${APP_PORT_WEBRTC}:${APP_PORT_WEBRTC}
+    # - ${APP_PORT_AMI}:${APP_PORT_AMI}
+    # - ${APP_PORT_RTP_START}-${APP_PORT_RTP_END}:${APP_PORT_RTP_START}-${APP_PORT_RTP_END}
+    # - ${APP_PORT_RTP_START}-${APP_PORT_RTP_END}:${APP_PORT_RTP_START}-${APP_PORT_RTP_END}/udp
